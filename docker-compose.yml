@@ -1,0 +1,53 @@
+version: "3.9"
+services:
+  appartments:
+    build: ./appartments
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./data:/home/data
+
+  search:
+    build: ./search
+    ports:
+      - "5002:5000"
+    volumes:
+      - ./data:/home/data
+      
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+        - 5672:5672
+        - 15672:15672
+    volumes:
+        - rabbit_lib:/var/lib/rabbitmq
+        - rabbit_log:/var/log/rabbitmq
+    # logging:
+    #   driver: none
+
+  consul:
+    image: consul:latest
+    ports:
+      - "8400:8400"
+      - "8500:8500"
+      - "8600:8600"
+      - "8600:8600/udp"
+    command: "agent -server -bootstrap-expect=1 -ui -client 0.0.0.0"
+
+  # generated password as explained on https://gist.github.com/deviantony/62c009b41bde5e078b1a7de9f11f5e55
+  portainer:
+    image: cr.portainer.io/portainer/portainer-ce:2.9.3
+    command: --admin-password '$$2y$$05$$wGfrsAMSLCc7SU/GQ4EMUO/gzI1rx4dIe2W15fHm9EtVF0mZitAn.'
+    ports:
+      - "9443:9443"
+      - "8000:8000"
+      - "9000:9000"
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: always
+
+volumes:
+  portainer_data:
+  rabbit_lib:
+  rabbit_log:
