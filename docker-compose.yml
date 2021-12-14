@@ -1,19 +1,21 @@
 version: "3.9"
 services:
   appartments:
+    image: cse-microservices3_appartments
     build: ./appartments
     ports:
       - "5001:5000"
     volumes:
       - ./data:/home/data
 
-  search:
-    build: ./search
-    ports:
-      - "5002:5000"
-    volumes:
-      - ./data:/home/data
-      
+#  search:
+#    image: cse-microservices3_search
+#    build: ./search
+#    ports:
+#      - "5002:5000"
+#    volumes:
+#      - ./data:/home/data
+
   rabbitmq:
     image: rabbitmq:3-management-alpine
     ports:
@@ -34,18 +36,44 @@ services:
       - "8600:8600/udp"
     command: "agent -server -bootstrap-expect=1 -ui -client 0.0.0.0"
 
-  # generated password as explained on https://gist.github.com/deviantony/62c009b41bde5e078b1a7de9f11f5e55
-  portainer:
-    image: cr.portainer.io/portainer/portainer-ce:2.9.3
-    command: --admin-password '$$2y$$05$$wGfrsAMSLCc7SU/GQ4EMUO/gzI1rx4dIe2W15fHm9EtVF0mZitAn.'
-    ports:
-      - "9443:9443"
-      - "8000:8000"
-      - "9000:9000"
-    volumes:
-      - portainer_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    restart: always
+#  agent:
+#    image: portainer/agent
+#    environment:
+#      # REQUIRED: Should be equal to the service name prefixed by "tasks." when
+#      # deployed inside an overlay network
+#      AGENT_CLUSTER_ADDR: tasks.agent
+#      # AGENT_PORT: 9001
+#      # LOG_LEVEL: debug
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock
+#      - /var/lib/docker/volumes:/var/lib/docker/volumes
+#    networks:
+#      - agent_network
+#    deploy:
+#      mode: global
+#      placement:
+#        constraints: [node.platform.os == linux]
+
+#  portainer:
+#    image: cr.portainer.io/portainer/portainer-ce:2.9.3
+#    command: -H tcp://tasks.agent:9001 --tlsskipverify
+#    ports:
+#      - "9000:9000"
+#      - "8000:8000"
+#    volumes:
+#      - portainer_data:/data
+#    networks:
+#      - agent_network
+#    deploy:
+#      mode: replicated
+#      replicas: 1
+#      placement:
+#        constraints: [node.role == manager]
+
+#networks:
+#  agent_network:
+#    driver: overlay
+#    attachable: true
 
 volumes:
   portainer_data:
