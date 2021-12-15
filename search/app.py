@@ -101,8 +101,8 @@ if __name__ == "__main__":
     channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="added")
     channel.basic_consume(queue=queue_name, on_message_callback=appartment_added, auto_ack=True)
 
-    #channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="removed")
-    #channel.basic_consume(queue=queue_name, on_message_callback=appartment_removed, auto_ack=True)
+    channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="removed")
+    channel.basic_consume(queue=queue_name, on_message_callback=appartment_removed, auto_ack=True)
 
     logging.info("Waiting for messages.")
 
@@ -129,18 +129,22 @@ if __name__ == "__main__":
             database_is_initialized = True
 
         # Setup Database for reserve and get the entries from rabbitMQ
-        #cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
 
-        #address, port = find_service("reserve")
-        #if address != None and port != None:
-        #    response = requests.get(f"http://{address}:{port}/reserve")
-        #    data = response.json()
+        address, port = find_service("reserve")
+        if address != None and port != None:
+            logging.error("------------------------------")
+            logging.error("found adress and port")
+            logging.error(address)
+            logging.error(port)
+            response = requests.get(f"http://{address}:{port}/reserve")
+            logging.error(result)
+            data = response.json()
 
-        #    for entry in data["reserve"]:
-        #        cursor.execute("INSERT INTO reserve VALUES (?, ?, ?, ?)", (entry["id"], entry["name"], entry["start"],
-        #                                                                   entry["duration"]))
+            for entry in data["reserve"]:
+                cursor.execute("INSERT INTO reserve VALUES (?, ?, ?, ?)", (entry["id"], entry["name"], entry["start"], entry["duration"]))
 
-        #    database_is_initialized = True
+            database_is_initialized = True
 
     if not database_is_initialized:
         logging.error("Cannot initialize database.")
