@@ -108,7 +108,8 @@ def appartments():
 
     return json.dumps({"appartments": []})
 
-def register(): 
+def register():
+    time.sleep(10)
     while True:
         try:
             connection = consul.Consul(host='consul', port=8500)

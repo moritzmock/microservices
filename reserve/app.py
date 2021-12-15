@@ -153,15 +153,17 @@ def appartments():
 
     return json.dumps({"reservations": []})
 
-def register(): 
+def register():
+    time.sleep(10)
     while True:
         try:
             connection = consul.Consul(host='consul', port=8500)
             connection.agent.service.register("reserve", address="reserve", port=5000)
             break
         except (ConnectionError, consul.ConsulException): 
-            logging.warning('Consul is down, reconnecting...') 
-            time.sleep(5) 
+            logging.warning('Consul is down, reconnecting...')
+            time.sleep(5)
+
 
 if __name__ == "__main__":
     logging.info("Starting the web server.")

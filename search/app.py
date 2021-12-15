@@ -21,7 +21,7 @@ def appartment_added(ch, method, properties, body):
     data = json.loads(body)
     id = data["id"]
     name = data["name"]
-    
+
     logging.info(f"Adding appartment {name}...")
 
     connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
@@ -30,9 +30,20 @@ def appartment_added(ch, method, properties, body):
     cursor.close()
     connection.close()
 
+def appartment_removed(ch, method, properties, body):
+    data = json.loads(body)
+    name = data["name"]
+
+    logging.info(f"Removing appartment {name}...")
+
+    connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM appartments WHERE name = (?)", (name,))
+    cursor.close()
+    connection.close()
 
 def connect_to_mq():
-    while True:        
+    while True:
         time.sleep(10)
 
         try:
@@ -44,30 +55,33 @@ def connect_to_mq():
 def listen_to_events(channel):
     channel.start_consuming()
 
-def register(): 
+
+def register():
+    time.sleep(10)
     while True:
         try:
             connection = consul.Consul(host='consul', port=8500)
             connection.agent.service.register("search", address="search", port=5000)
             break
-        except (ConnectionError, consul.ConsulException): 
-            logging.warning('Consul is down, reconnecting...') 
-            time.sleep(5) 
+        except (ConnectionError, consul.ConsulException):
+            logging.warning('Consul is down, reconnecting...')
+            time.sleep(5)
 
-def deregister(): 
+
+def deregister():
     connection = consul.Consul(host='consul', port=8500)
     connection.agent.service.deregister("search", address="search", port=5002)
 
+
 def find_service(name):
     connection = consul.Consul(host="consul", port=8500)
-    _, services = connection.health.service(name, passing=True) 
+    _, services = connection.health.service(name, passing=True)
     for service_info in services:
         address = service_info["Service"]["Address"]
         port = service_info["Service"]["Port"]
         return address, port
 
     return None, None
-
 
 
 if __name__ == "__main__":
@@ -78,7 +92,7 @@ if __name__ == "__main__":
     logging.info("Start.")
 
     register()
-    
+
     connection = connect_to_mq()
     channel = connection.channel()
     channel.exchange_declare(exchange="appartments", exchange_type="direct")
@@ -86,8 +100,12 @@ if __name__ == "__main__":
     queue_name = result.method.queue
     channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="added")
     channel.basic_consume(queue=queue_name, on_message_callback=appartment_added, auto_ack=True)
+
+    #channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="removed")
+    #channel.basic_consume(queue=queue_name, on_message_callback=appartment_removed, auto_ack=True)
+
     logging.info("Waiting for messages.")
-    
+
     thread = threading.Thread(target=listen_to_events, args=(channel,), daemon=True)
     thread.start()
 
@@ -99,17 +117,31 @@ if __name__ == "__main__":
         connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
         cursor = connection.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text)")
-        
+
         address, port = find_service("appartments")
-        if address!=None and port!=None:
+        if address != None and port != None:
             response = requests.get(f"http://{address}:{port}/appartments")
             data = response.json()
 
             for entry in data["appartments"]:
                 cursor.execute("INSERT INTO appartments VALUES (?, ?)", (entry["id"], entry["name"]))
 
-            database_is_initialized = True            
-            
+            database_is_initialized = True
+
+        # Setup Database for reserve and get the entries from rabbitMQ
+        #cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
+
+        #address, port = find_service("reserve")
+        #if address != None and port != None:
+        #    response = requests.get(f"http://{address}:{port}/reserve")
+        #    data = response.json()
+
+        #    for entry in data["reserve"]:
+        #        cursor.execute("INSERT INTO reserve VALUES (?, ?, ?, ?)", (entry["id"], entry["name"], entry["start"],
+        #                                                                   entry["duration"]))
+
+        #    database_is_initialized = True
+
     if not database_is_initialized:
         logging.error("Cannot initialize database.")
     else:
