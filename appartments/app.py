@@ -76,7 +76,7 @@ def remove():
     cursor.close()
     connection.close()
 
-    # Notify everybody that the appartment was added
+    # Notify everybody that the appartment was removed
     connection = pika.BlockingConnection(pika.ConnectionParameters("rabbitmq"))
     channel = connection.channel()
     channel.exchange_declare(exchange="appartments", exchange_type="direct")
@@ -87,14 +87,21 @@ def remove():
 
 @app.route("/")
 def hello():
-    return "Hello World from appartements!"
+    # Connect and setup the database
+    connection = sqlite3.connect("/home/data/appartments.db", isolation_level=None)
+    cursor = connection.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text, size text)")
+
+    cursor.execute("SELECT COUNT(id) FROM appartments")
+    exists = cursor.fetchone()[0]
+    return str(exists)
 
 @app.route("/appartments")
 def appartments():
     if os.path.exists("/home/data/appartments.db"):
         connection = sqlite3.connect("/home/data/appartments.db", isolation_level=None)
         cursor = connection.cursor()
-        cursor.execute("SELECT id, name FROM appartments")
+        cursor.execute("SELECT id, name, size FROM appartments")
         columns = [col[0] for col in cursor.description]
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
         return json.dumps({"appartments": rows})
