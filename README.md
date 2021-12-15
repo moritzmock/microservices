@@ -4,7 +4,7 @@ Requirements for the extended microservice-based system:
 - Extend the appartment service so that you can
   - specify the size when you add an apparment (the command becomes /add?name=...&size=...) -> implemented
   - delete an appartment (the command becomes /remove?name=...) -> implemented
-  - Add a "reserve" microservice that allows to
+  - Add a "reserve" microservice that allows to -> implemented overlaps in booking
     - add a reservation (the command is /add?name=...&start=yyyymmdd&duration=...&vip=1) -> implemented
     - remove a reservation (the command is /remove?id=...) -> implemented
 - Extend the search service so that you can 

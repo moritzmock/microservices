@@ -9,6 +9,7 @@ import json
 import consul
 import time
 import os
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -39,10 +40,45 @@ def add():
     cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text, vip text)")
 
     # Check if reservation already exists
-    cursor.execute("SELECT COUNT(id) FROM reserve WHERE name = ? AND start = ?", (name,start,))
-    already_exists = cursor.fetchone()[0]
-    if already_exists > 0:
-        return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment already reserved"}', status=400, mimetype="application/json")
+    cursor.execute("SELECT start, duration FROM reserve WHERE name = ?", (name,))
+    for row in cursor.fetchall():
+        dateStr = row[0]
+        durationStr = row[1]
+        dateExistingStart = datetime.strptime(dateStr, '%Y%m%d')
+        dateWantedStart = datetime.strptime(start, '%Y%m%d')
+
+        for i in range(int(durationStr) + 1):
+            dateExistingStart = dateExistingStart + timedelta(days=1)
+            year = dateExistingStart.year
+            month = dateExistingStart.month
+            day = dateExistingStart.day
+
+            if month < 10:
+                month = '0' + str(month)
+
+            if day < 10:
+                day = '0' + str(day)
+
+            compare = str(year) + str(month) + str(day)
+            if start == compare:
+                return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment already reserved"}', status=400, mimetype="application/json")
+
+        for i in range(int(duration) + 1):
+            dateWantedStart = dateWantedStart + timedelta(days=1)
+            year = dateWantedStart.year
+            month = dateWantedStart.month
+            day = dateWantedStart.day
+
+            if month < 10:
+                month = '0' + str(month)
+
+            if day < 10:
+                day = '0' + str(day)
+
+            compare = str(year) + str(month) + str(day)
+            if dateStr == compare:
+                return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment already reserved"}', status=400, mimetype="application/json")
+
 
     # Add appartement
     cursor.execute("INSERT INTO reserve VALUES (?, ?, ?, ?, ?)", (str(id), name, start, duration, vip))
