@@ -14,7 +14,21 @@ app = Flask(__name__)
 
 @app.route("/")
 def hello():
-    return "Hello World from the search service!"
+    # Connect and setup the database
+    connection = sqlite3.connect("/home/data/appartments.db", isolation_level=None)
+    cursor = connection.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text, size text)")
+
+    cursor.execute("SELECT COUNT(id) FROM appartments")
+    numberApparments = cursor.fetchone()[0]
+
+    connection = sqlite3.connect("/home/data/reserve.db", isolation_level=None)
+    cursor = connection.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, size text)")
+
+    cursor.execute("SELECT COUNT(id) FROM reserve")
+    numberReservation= cursor.fetchone()[0]
+    return "- Number of apartments: " + str(numberApparments) + "<br/>- Number of reservation: " + str(numberReservation)
 
 
 def appartment_added(ch, method, properties, body):
@@ -38,7 +52,14 @@ def appartment_removed(ch, method, properties, body):
 
     connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
     cursor = connection.cursor()
-    cursor.execute("DELETE FROM appartments WHERE name = (?)", (name,))
+
+    cursor.execute("SELECT COUNT(id) FROM appartments WHERE name = ?", (name,))
+    exists = cursor.fetchone()[0]
+
+    #only delete if it is in the DB
+    if exists > 0:
+        cursor.execute("DELETE FROM appartments WHERE name = (?)", (name,))
+
     cursor.close()
     connection.close()
 
