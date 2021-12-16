@@ -22,3 +22,6 @@ To implement this, you need to:
 - Add the "squarmeter" column to the table appartment in the appartment service db -> done
 - Create the "reserve" microservice, subscribe to AppartmentAdded and AppartmentRemoved events and synchronized the data
 - Extend the "search" service so that it also listens to the AppartmentRemoved (implemented) events and also the ReservationAdded and ReservationRemoved events.
+
+
+gateway: https://blog.risingstack.com/building-an-api-gateway-using-nodejs/
