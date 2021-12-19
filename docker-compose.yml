@@ -21,6 +21,11 @@ services:
     volumes:
       - ./data:/home/data
 
+#  gateway:
+#    build: ./gateway
+#    ports:
+#      - "5000:5000"
+
 
 
   rabbitmq:
