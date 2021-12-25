@@ -93,8 +93,8 @@ def hello():
     cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text, size text)")
 
     cursor.execute("SELECT COUNT(id) FROM appartments")
-    exists = cursor.fetchone()[0]
-    return str(exists)
+    numberApparments = cursor.fetchone()[0]
+    return "- Number of apartments: " + str(numberApparments)
 
 @app.route("/appartments")
 def appartments():

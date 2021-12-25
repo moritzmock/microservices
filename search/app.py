@@ -15,16 +15,14 @@ app = Flask(__name__)
 @app.route("/")
 def hello():
     # Connect and setup the database
-    connection = sqlite3.connect("/home/data/appartments.db", isolation_level=None)
+    connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
     cursor = connection.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text, size text)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text)")
 
     cursor.execute("SELECT COUNT(id) FROM appartments")
     numberApparments = cursor.fetchone()[0]
 
-    connection = sqlite3.connect("/home/data/reserve.db", isolation_level=None)
-    cursor = connection.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, size text)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, size text, start text)")
 
     cursor.execute("SELECT COUNT(id) FROM reserve")
     numberReservation= cursor.fetchone()[0]

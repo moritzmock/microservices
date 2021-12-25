@@ -152,11 +152,16 @@ def hello():
     # Connect and setup the database
     connection = sqlite3.connect("/home/data/reserve.db", isolation_level=None)
     cursor = connection.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text, vip text)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text)")
+
+    cursor.execute("SELECT COUNT(id) FROM appartments")
+    numberApparments = cursor.fetchone()[0]
+
+    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, size text, start text, vip text)")
 
     cursor.execute("SELECT COUNT(id) FROM reserve")
-    exists = cursor.fetchone()[0]
-    return str(exists)
+    numberReservation= cursor.fetchone()[0]
+    return "- Number of apartments: " + str(numberApparments) + "<br/>- Number of reservation: " + str(numberReservation)
 
 @app.route("/reservationions")
 def reserve():
