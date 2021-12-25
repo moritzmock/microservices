@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 
 
+
 @app.route("/add")
 def add():
     id = uuid.uuid4()
@@ -27,7 +28,7 @@ def add():
 
     if start == None:
             return Response('{"result": false, "error": 3, "description": "Cannot proceed because you did not provide a start for the appartment."}', status=400, mimetype="application/json")
-
+    logging.warning(start)
     if duration == None:
         duration = "1"
 
@@ -39,45 +40,61 @@ def add():
     cursor = connection.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text, vip text)")
 
-    # Check if reservation already exists
-    cursor.execute("SELECT start, duration FROM reserve WHERE name = ?", (name,))
-    for row in cursor.fetchall():
-        dateStr = row[0]
-        durationStr = row[1]
-        dateExistingStart = datetime.strptime(dateStr, '%Y%m%d')
-        dateWantedStart = datetime.strptime(start, '%Y%m%d')
+    cursor.execute("SELECT COUNT(id) FROM reserve")
 
-        for i in range(int(durationStr) + 1):
-            dateExistingStart = dateExistingStart + timedelta(days=1)
-            year = dateExistingStart.year
-            month = dateExistingStart.month
-            day = dateExistingStart.day
+    numberOfBookings = cursor.fetchone()[0]
 
-            if month < 10:
-                month = '0' + str(month)
+    logging.warning(numberOfBookings)
 
-            if day < 10:
-                day = '0' + str(day)
+    if numberOfBookings != 0:
+        # Check if reservation already exists
 
-            compare = str(year) + str(month) + str(day)
-            if start == compare:
-                return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment already reserved"}', status=400, mimetype="application/json")
+        cursor.execute("SELECT COUNT(id) FROM reserve")
 
-        for i in range(int(duration) + 1):
-            dateWantedStart = dateWantedStart + timedelta(days=1)
-            year = dateWantedStart.year
-            month = dateWantedStart.month
-            day = dateWantedStart.day
+        numberOfBookings = cursor.fetchone()[0]
 
-            if month < 10:
-                month = '0' + str(month)
+        logging.warning(numberOfBookings)
 
-            if day < 10:
-                day = '0' + str(day)
+        cursor.execute("SELECT start, duration FROM reserve WHERE name = ?", (name,))
+        for row in cursor.fetchall():
+            dateStr = row[0]
+            durationStr = row[1]
+            dateExistingStart = datetime.strptime(str(dateStr), '%Y%m%d')
+            dateWantedStart = datetime.strptime(str(start), '%Y%m%d')
+            logging.warning(dateStr)
+            logging.warning(durationStr)
 
-            compare = str(year) + str(month) + str(day)
-            if dateStr == compare:
-                return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment already reserved"}', status=400, mimetype="application/json")
+            for i in range(int(durationStr) + 1):
+                year = dateExistingStart.year
+                month = dateExistingStart.month
+                day = dateExistingStart.day
+
+                if month < 10:
+                    month = '0' + str(month)
+
+                if day < 10:
+                    day = '0' + str(day)
+
+                compare = str(year) + str(month) + str(day)
+                if str(start) == str(compare):
+                    return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment already reserved"}', status=400, mimetype="application/json")
+                dateExistingStart = dateExistingStart + timedelta(days=1)
+
+            for i in range(int(duration) + 1):
+                year = dateWantedStart.year
+                month = dateWantedStart.month
+                day = dateWantedStart.day
+
+                if month < 10:
+                    month = '0' + str(month)
+
+                if day < 10:
+                    day = '0' + str(day)
+
+                compare = str(year) + str(month) + str(day)
+                if str(dateStr) == str(compare):
+                    return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment already reserved"}', status=400, mimetype="application/json")
+                dateWantedStart = dateWantedStart + timedelta(days=1)
 
 
     # Add appartement
@@ -141,17 +158,17 @@ def hello():
     exists = cursor.fetchone()[0]
     return str(exists)
 
-@app.route("/reservations")
-def appartments():
+@app.route("/reservationions")
+def reserve():
     if os.path.exists("/home/data/reserve.db"):
         connection = sqlite3.connect("/home/data/reserve.db", isolation_level=None)
         cursor = connection.cursor()
         cursor.execute("SELECT id, name, start, duration, vip FROM reserve")
         columns = [col[0] for col in cursor.description]
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        return json.dumps({"reservations": rows})
+        return json.dumps({"reservationions": rows})
 
-    return json.dumps({"reservations": []})
+    return json.dumps({"reservationions": []})
 
 def register():
     time.sleep(10)

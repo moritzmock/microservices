@@ -150,22 +150,20 @@ if __name__ == "__main__":
             database_is_initialized = True
 
         # Setup Database for reserve and get the entries from rabbitMQ
-        cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text, vip text)")
 
         address, port = find_service("reserve")
         if address != None and port != None:
-            logging.error("------------------------------")
-            logging.error("found adress and port")
-            logging.error(address)
-            logging.error(port)
             response = requests.get(f"http://{address}:{port}/reserve")
-            logging.error(result)
             data = response.json()
 
             for entry in data["reserve"]:
                 cursor.execute("INSERT INTO reserve VALUES (?, ?, ?, ?)", (entry["id"], entry["name"], entry["start"], entry["duration"]))
 
             database_is_initialized = True
+
+
+
 
     if not database_is_initialized:
         logging.error("Cannot initialize database.")
