@@ -13,16 +13,16 @@ const port = 5000
 
 app.get('/appartments', async (req, res) => {
     const uri = `${domain}:${portAppartments}/appartments`
-    const user = await request(uri)
-    res.json(user)
+    const data = await request(uri)
+    res.json(data)
 })
 
 app.get('/appartments/add', async (req, res) => {
     const params = req.url.split("/")[2]
     const uri = `${domain}:${portAppartments}/${params}`
     try {
-        const user = await request(uri)
-        res.json(user)
+        const data = await request(uri)
+        res.json(data)
     } catch (e){
         res.json(e.message)
     }
@@ -32,8 +32,8 @@ app.get('/appartments/remove', async (req, res) => {
     const params = req.url.split("/")[2]
     const uri = `${domain}:${portAppartments}/${params}`
     try {
-        const user = await request(uri)
-        res.json(user)
+        const data = await request(uri)
+        res.json(data)
     } catch (e){
         res.json(e.message)
     }
@@ -41,22 +41,26 @@ app.get('/appartments/remove', async (req, res) => {
 
 app.get('/search', async (req, res) => {
     const uri = `${domain}:${portSearch}`
-    const user = await request(uri)
-    res.json(user)
+    try {
+        const data = await request(uri)
+        res.json(data)
+    } catch (e){
+        res.json(e.message)
+    }
 })
 
 app.get('/reserve', async (req, res) => {
     const uri = `${domain}:${portReserve}`
-    const user = await request(uri)
-    res.json(user)
+    const data = await request(uri)
+    res.json(data)
 })
 
 app.get('/reserve/add', async (req, res) => {
     const params = req.url.split("/")[2]
     const uri = `${domain}:${portReserve}/${params}`
     try {
-        const user = await request(uri)
-        res.json(user)
+        const data = await request(uri)
+        res.json(data)
     } catch (e){
         res.json(e.message)
     }
@@ -66,8 +70,8 @@ app.get('/reserve/remove', async (req, res) => {
     const params = req.url.split("/")[2]
     const uri = `${domain}:${portReserve}/${params}`
     try {
-        const user = await request(uri)
-        res.json(user)
+        const data = await request(uri)
+        res.json(data)
     } catch (e){
         res.json(e.message)
     }
