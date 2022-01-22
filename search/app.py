@@ -5,6 +5,8 @@ import time
 import threading
 import json
 from flask import Flask
+from flask import request
+from flask import Response
 import consul
 import os
 import requests
@@ -22,14 +24,50 @@ def hello():
     cursor.execute("SELECT COUNT(id) FROM appartments")
     numberApparments = cursor.fetchone()[0]
 
-    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, size text, start text)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
 
     cursor.execute("SELECT COUNT(id) FROM reserve")
     numberReservation= cursor.fetchone()[0]
     return "- Number of apartments: " + str(numberApparments) + "<br/>- Number of reservation: " + str(numberReservation)
 
 
+@app.route("/search")
+def search():
+    start = request.args.get("date")
+    duration = request.args.get("duration")
+
+    if start == None:
+        return Response('{"result": false, "error": 1, "description": "Cannot proceed because you did not provide a start for the search."}',status=400, mimetype="application/json")
+
+    if duration == None:
+        return Response('{"result": false, "error": 1, "description": "Cannot proceed because you did not provide a duration date for the reservation."}',status=400, mimetype="application/json")
+
+    duration = int(duration)
+
+    # Connect and setup the database
+    connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
+    cursor = connection.cursor()
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text)")
+
+    # Check for free apartments
+    cursor.execute("SELECT name from appartments")
+    apps = cursor.fetchall()
+    if len(apps) == 0:
+        return Response('{"result": false, "error": 2, "description": "No results matched the criteria."}',status=400, mimetype="application/json")
+
+    list = "Names"
+    for record in apps:
+        list += f"<div>{record[0]}</div>\n"
+
+    connection.close()
+
+    return f'<p>Aparments {len(apps)} results.</p><p>{list}</p>'
+
+
 def appartment_added(ch, method, properties, body):
+    logging.info("Apartment added message received.")
     data = json.loads(body)
     id = data["id"]
     name = data["name"]
@@ -38,28 +76,64 @@ def appartment_added(ch, method, properties, body):
 
     connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
     cursor = connection.cursor()
+
+    cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text)")
     cursor.execute("INSERT INTO appartments VALUES (?, ?)", (id, name))
     cursor.close()
     connection.close()
 
-def appartment_removed(ch, method, properties, body):
+
+def apartment_deleted(ch, method, properties, body):
+    logging.info("Apartment deleted message received.")
     data = json.loads(body)
+    id = data["id"]
     name = data["name"]
 
-    logging.info(f"Removing appartment {name}...")
+    logging.info(f"Deleting appartment {name}...")
 
     connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
     cursor = connection.cursor()
 
-    cursor.execute("SELECT COUNT(id) FROM appartments WHERE name = ?", (name,))
-    exists = cursor.fetchone()[0]
-
-    #only delete if it is in the DB
-    if exists > 0:
-        cursor.execute("DELETE FROM appartments WHERE name = (?)", (name,))
-
+    cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text)")
+    cursor.execute("DELETE FROM appartments WHERE id = ?", (id,))
     cursor.close()
     connection.close()
+
+
+def reservation_added(ch, method, properties, body):
+    logging.info("Reservation added message received.")
+    data = json.loads(body)
+    id = data["id"]
+    name = data["name"]
+    start = data["start"]
+    duration = data["duration"]
+
+    logging.info(f"Adding reservation {id}({name})...")
+
+    connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
+    cursor = connection.cursor()
+
+    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
+    cursor.execute("INSERT INTO reserve VALUES (?, ?, ?, ?)", (id, name, start, duration))
+    cursor.close()
+    connection.close()
+
+
+def reservation_deleted(ch, method, properties, body):
+    logging.info("Reservation deleted message received.")
+    data = json.loads(body)
+    id = data["id"]
+
+    logging.info(f"Deleting reservation {id}...")
+
+    connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
+    cursor = connection.cursor()
+
+    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
+    cursor.execute("DELETE FROM reservation WHERE id = ?", (id,))
+    cursor.close()
+    connection.close()
+
 
 def connect_to_mq():
     while True:
@@ -80,7 +154,7 @@ def register():
     while True:
         try:
             connection = consul.Consul(host='consul', port=8500)
-            connection.agent.service.register("search", address="search", port=5000)
+            connection.agent.service.register("search", address="127.0.0.1", port=5003)
             break
         except (ConnectionError, consul.ConsulException):
             logging.warning('Consul is down, reconnecting...')
@@ -113,15 +187,31 @@ if __name__ == "__main__":
     register()
 
     connection = connect_to_mq()
+
     channel = connection.channel()
     channel.exchange_declare(exchange="appartments", exchange_type="direct")
+
     result = channel.queue_declare(queue="", exclusive=True)
     queue_name = result.method.queue
     channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="added")
     channel.basic_consume(queue=queue_name, on_message_callback=appartment_added, auto_ack=True)
 
-    channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="removed")
-    channel.basic_consume(queue=queue_name, on_message_callback=appartment_removed, auto_ack=True)
+    result = channel.queue_declare(queue="", exclusive=True)
+    queue_name = result.method.queue
+    channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="deleted")
+    channel.basic_consume(queue=queue_name, on_message_callback=apartment_deleted, auto_ack=True)
+
+    channel.exchange_declare(exchange="reserve", exchange_type="direct")
+
+    result = channel.queue_declare(queue="", exclusive=True)
+    queue_name = result.method.queue
+    channel.queue_bind(exchange="reserve", queue=queue_name, routing_key="added")
+    channel.basic_consume(queue=queue_name, on_message_callback=reservation_added, auto_ack=True)
+
+    result = channel.queue_declare(queue="", exclusive=True)
+    queue_name = result.method.queue
+    channel.queue_bind(exchange="reserve", queue=queue_name, routing_key="deleted")
+    channel.basic_consume(queue=queue_name, on_message_callback=reservation_deleted, auto_ack=True)
 
     logging.info("Waiting for messages.")
 
@@ -138,30 +228,32 @@ if __name__ == "__main__":
         cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text)")
 
         address, port = find_service("appartments")
-        if address != None and port != None:
+        if address is not None and port is not None:
             response = requests.get(f"http://{address}:{port}/appartments")
             data = response.json()
 
+            logging.info("Received data: " + data)
+
             for entry in data["appartments"]:
-                cursor.execute("INSERT INTO appartments VALUES (?, ?)", (entry["id"], entry["name"]))
+                cursor.execute("INSERT INTO appartments VALUES (?, ?, ?)", (entry["id"], entry["name"]))
 
             database_is_initialized = True
 
-        # Setup Database for reserve and get the entries from rabbitMQ
-        cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text, vip text)")
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
 
         address, port = find_service("reserve")
-        if address != None and port != None:
-            response = requests.get(f"http://{address}:{port}/reserve")
+        if address is not None and port is not None:
+            response = requests.get(f"http://{address}:{port}/reservations")
             data = response.json()
 
-            for entry in data["reserve"]:
-                cursor.execute("INSERT INTO reserve VALUES (?, ?, ?, ?)", (entry["id"], entry["name"], entry["start"], entry["duration"]))
+            logging.info("Received data: " + data)
+
+            for entry in data["reservation"]:
+                cursor.execute("INSERT INTO reservation VALUES (?, ?, ?, ?, ?)",
+                               (entry["id"], entry["name"], entry["start"], entry["duration"]))
 
             database_is_initialized = True
-
-
-
 
     if not database_is_initialized:
         logging.error("Cannot initialize database.")

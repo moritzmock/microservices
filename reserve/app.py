@@ -14,7 +14,6 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 
 
-
 @app.route("/add")
 def add():
     id = uuid.uuid4()
@@ -28,7 +27,7 @@ def add():
 
     if start == None:
             return Response('{"result": false, "error": 3, "description": "Cannot proceed because you did not provide a start for the appartment."}', status=400, mimetype="application/json")
-    logging.warning(start)
+
     if duration == None:
         duration = "1"
 
@@ -44,7 +43,6 @@ def add():
 
     numberOfBookings = cursor.fetchone()[0]
 
-    logging.warning(numberOfBookings)
 
     if numberOfBookings != 0:
         # Check if reservation already exists
@@ -53,16 +51,12 @@ def add():
 
         numberOfBookings = cursor.fetchone()[0]
 
-        logging.warning(numberOfBookings)
-
         cursor.execute("SELECT start, duration FROM reserve WHERE name = ?", (name,))
         for row in cursor.fetchall():
             dateStr = row[0]
             durationStr = row[1]
             dateExistingStart = datetime.strptime(str(dateStr), '%Y%m%d')
             dateWantedStart = datetime.strptime(str(start), '%Y%m%d')
-            logging.warning(dateStr)
-            logging.warning(durationStr)
 
             for i in range(int(durationStr) + 1):
                 year = dateExistingStart.year
@@ -77,7 +71,7 @@ def add():
 
                 compare = str(year) + str(month) + str(day)
                 if str(start) == str(compare):
-                    return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment already reserved"}', status=400, mimetype="application/json")
+                    return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment is already reserved"}', status=400, mimetype="application/json")
                 dateExistingStart = dateExistingStart + timedelta(days=1)
 
             for i in range(int(duration) + 1):
@@ -93,7 +87,7 @@ def add():
 
                 compare = str(year) + str(month) + str(day)
                 if str(dateStr) == str(compare):
-                    return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment already reserved"}', status=400, mimetype="application/json")
+                    return Response('{"result": false, "error": 2, "description": "Cannot proceed because this appartment is already reserved"}', status=400, mimetype="application/json")
                 dateWantedStart = dateWantedStart + timedelta(days=1)
 
 
@@ -111,41 +105,6 @@ def add():
 
     return Response('{"result": true, description="Appartment was booked successfully."}', status=201, mimetype="application/json")
 
-@app.route("/remove")
-def remove():
-
-    id = request.args.get("id")
-
-    if id == None:
-        return Response('{"result": false, "error": 1, "description": "Cannot proceed because you did not provide an id for the appartment."}',status=400, mimetype="application/json")
-
-    # Connect and setup the database
-    connection = sqlite3.connect("/home/data/reserve.db", isolation_level=None)
-    cursor = connection.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text, vip text)")
-
-    # Check if appartement exists
-    cursor.execute("SELECT COUNT(id) FROM reserve WHERE id = ?", (id,))
-    exists = cursor.fetchone()[0]
-
-    if exists == 0:
-        return Response(
-            '{"result": false, "error": 2, "description": "Can not proceed because this reservation was not found"}',
-            status=400, mimetype="application/json")
-
-    # remove reservation
-    cursor.execute("DELETE FROM reserve WHERE id = (?)", (id,))
-    cursor.close()
-    connection.close()
-
-    # Notify everybody that the reservation was removed
-    connection = pika.BlockingConnection(pika.ConnectionParameters("rabbitmq"))
-    channel = connection.channel()
-    channel.exchange_declare(exchange="appartments", exchange_type="direct")
-    channel.basic_publish(exchange="appartments", routing_key="removed", body=json.dumps({"id": id}))
-    connection.close()
-
-    return Response('{"result": true, description="Reservation was removed successfully."}', status=201, mimetype="application/json")
 
 @app.route("/")
 def hello():
@@ -157,13 +116,15 @@ def hello():
     cursor.execute("SELECT COUNT(id) FROM appartments")
     numberApparments = cursor.fetchone()[0]
 
-    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, size text, start text, vip text)")
+
+    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text, vip text)")
 
     cursor.execute("SELECT COUNT(id) FROM reserve")
     numberReservation= cursor.fetchone()[0]
     return "- Number of apartments: " + str(numberApparments) + "<br/>- Number of reservation: " + str(numberReservation)
 
-@app.route("/reservationions")
+
+@app.route("/reservations")
 def reserve():
     if os.path.exists("/home/data/reserve.db"):
         connection = sqlite3.connect("/home/data/reserve.db", isolation_level=None)
@@ -175,14 +136,51 @@ def reserve():
 
     return json.dumps({"reservationions": []})
 
+
+@app.route("/remove")
+def delete():
+    id = request.args.get("id")
+
+    if id == None:
+        return Response('{"result": false, "error": 1, "description": "Cannot proceed because you did not provide an id for the reservation to delete."}',status=400, mimetype="application/json")
+
+    # Connect and setup the database
+    connection = sqlite3.connect("/home/data/reserve.db", isolation_level=None)
+    cursor = connection.cursor()
+
+    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text, vip text)")
+
+    # Check if reservation exists
+    cursor.execute("SELECT COUNT(id) FROM reserve WHERE id = ?", (id,))
+    exists = cursor.fetchone()[0]
+
+    if exists == 0:
+        return Response('{"result": false, "error": 2, "description": "Can not proceed because this reservation was not found"}',status=400, mimetype="application/json")
+
+    # remove reservation
+    cursor.execute("DELETE FROM reserve WHERE id = (?)", (id,))
+    cursor.close()
+    connection.close()
+
+    # Notify everybody that the reservation was deleted
+    connection = pika.BlockingConnection(pika.ConnectionParameters("rabbitmq"))
+    channel = connection.channel()
+    channel.exchange_declare(exchange="reserve", exchange_type="direct")
+    channel.basic_publish(exchange="reserve", routing_key="deleted",
+                          body=json.dumps({"id": str(id)}))
+    connection.close()
+
+    return Response('{"result": true, "description": "Reservation was deleted successfully."}', status=201,mimetype="application/json")
+
+
 def register():
     time.sleep(10)
     while True:
         try:
             connection = consul.Consul(host='consul', port=8500)
-            connection.agent.service.register("reserve", address="reserve", port=5000)
+            connection.agent.service.register("reserve", address="127.0.0.1", port=5002)
             break
-        except (ConnectionError, consul.ConsulException): 
+        except (ConnectionError, consul.ConsulException):
             logging.warning('Consul is down, reconnecting...')
             time.sleep(5)
 
