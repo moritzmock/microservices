@@ -178,7 +178,7 @@ def delete():
     connection = pika.BlockingConnection(pika.ConnectionParameters("rabbitmq"))
     channel = connection.channel()
     channel.exchange_declare(exchange="reserve", exchange_type="direct")
-    channel.basic_publish(exchange="reserve", routing_key="deleted",
+    channel.basic_publish(exchange="reserve", routing_key="removed",
                           body=json.dumps({"id": str(id)}))
     connection.close()
 
@@ -213,7 +213,7 @@ def appartment_added(ch, method, properties, body):
     connection.close()
 
 
-def appartment_remove(ch, method, properties, body):
+def appartment_removed(ch, method, properties, body):
     logging.info("Apartment deleted message received.")
     data = json.loads(body)
     name = data["name"]
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     result = channel.queue_declare(queue="", exclusive=True)
     queue_name = result.method.queue
     channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="removed")
-    channel.basic_consume(queue=queue_name, on_message_callback=appartment_remove, auto_ack=True)
+    channel.basic_consume(queue=queue_name, on_message_callback=appartment_removed, auto_ack=True)
     logging.info("Waiting for messages.")
 
     thread = threading.Thread(target=listen_to_events, args=(channel,), daemon=True)

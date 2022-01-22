@@ -10,6 +10,7 @@ from flask import Response
 import consul
 import os
 import requests
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -47,23 +48,73 @@ def search():
     # Connect and setup the database
     connection = sqlite3.connect("/home/data/search.db", isolation_level=None)
     cursor = connection.cursor()
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
     cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text)")
 
     # Check for free apartments
     cursor.execute("SELECT name from appartments")
-    apps = cursor.fetchall()
-    if len(apps) == 0:
-        return Response('{"result": false, "error": 2, "description": "No results matched the criteria."}',status=400, mimetype="application/json")
+    data = cursor.fetchall()
+    result = []
+    if len(data) == 0:
+        return Response('{"result": false, "error": 2, "description": "No apparmetns in the database"}',status=400, mimetype="application/json")
 
-    list = "Names"
-    for record in apps:
-        list += f"<div>{record[0]}</div>\n"
+    for app in data:
+        cursor.execute("SELECT name, start, duration from reserve WHERE name = ?", (app[0],))
+        reservations = cursor.fetchall()
+        if(len(reservations) == 0):
+            result.append(app[0])
+        else:
+            checkIfFree = True
+
+            for res in reservations:
+                dateStr = res[1]
+                durationStr = res[2]
+                dateExistingStart = datetime.strptime(str(dateStr), '%Y%m%d')
+                dateWantedStart = datetime.strptime(str(start), '%Y%m%d')
+
+                for i in range(int(durationStr) + 1):
+                    year = dateExistingStart.year
+                    month = dateExistingStart.month
+                    day = dateExistingStart.day
+
+                    if month < 10:
+                        month = '0' + str(month)
+
+                    if day < 10:
+                        day = '0' + str(day)
+
+                    compare = str(year) + str(month) + str(day)
+                    if str(start) == str(compare):
+                        checkIfFree = False
+                    dateExistingStart = dateExistingStart + timedelta(days=1)
+
+                for i in range(int(duration) + 1):
+                    year = dateWantedStart.year
+                    month = dateWantedStart.month
+                    day = dateWantedStart.day
+
+                    if month < 10:
+                        month = '0' + str(month)
+
+                    if day < 10:
+                        day = '0' + str(day)
+
+                    compare = str(year) + str(month) + str(day)
+                    if str(dateStr) == str(compare):
+                        checkIfFree = False
+                    dateWantedStart = dateWantedStart + timedelta(days=1)
+
+            if checkIfFree == True:
+                result.append(app[0])
+
+
+    list += "Names of the available appartments"
+    for record in result:
+        list += f"<div>{record}</div>\n"
 
     connection.close()
 
-    return f'<p>Aparments {len(apps)} results.</p><p>{list}</p>'
+    return f'<p>There are {len(result)} out of {len(data)} accommodations available for the desired holiday duration.</p><p>{list}</p>'
 
 
 def appartment_added(ch, method, properties, body):
@@ -83,7 +134,7 @@ def appartment_added(ch, method, properties, body):
     connection.close()
 
 
-def appartment_deleted(ch, method, properties, body):
+def appartment_removed(ch, method, properties, body):
     logging.info("Apartment deleted message received.")
     data = json.loads(body)
     name = data["name"]
@@ -118,7 +169,7 @@ def reservation_added(ch, method, properties, body):
     connection.close()
 
 
-def reservation_deleted(ch, method, properties, body):
+def reservation_removed(ch, method, properties, body):
     logging.info("Reservation deleted message received.")
     data = json.loads(body)
     id = data["id"]
@@ -197,8 +248,8 @@ if __name__ == "__main__":
 
     result = channel.queue_declare(queue="", exclusive=True)
     queue_name = result.method.queue
-    channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="deleted")
-    channel.basic_consume(queue=queue_name, on_message_callback=appartment_deleted, auto_ack=True)
+    channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="removed")
+    channel.basic_consume(queue=queue_name, on_message_callback=appartment_removed, auto_ack=True)
 
     channel.exchange_declare(exchange="reserve", exchange_type="direct")
 
@@ -209,8 +260,8 @@ if __name__ == "__main__":
 
     result = channel.queue_declare(queue="", exclusive=True)
     queue_name = result.method.queue
-    channel.queue_bind(exchange="reserve", queue=queue_name, routing_key="deleted")
-    channel.basic_consume(queue=queue_name, on_message_callback=reservation_deleted, auto_ack=True)
+    channel.queue_bind(exchange="reserve", queue=queue_name, routing_key="removed")
+    channel.basic_consume(queue=queue_name, on_message_callback=reservation_removed, auto_ack=True)
 
     logging.info("Waiting for messages.")
 
