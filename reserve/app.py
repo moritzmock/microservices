@@ -48,8 +48,8 @@ def add():
     cursor.execute("SELECT COUNT(id) FROM appartments WHERE name = ?", (name,))
     exists = cursor.fetchall()[0]
 
-    if exists == 0:
-        return Response('{"result": false, "error": 3, "description": "Can not proceed because this appartment does not exists"}',status=400, mimetype="application/json")
+    if exists[0] == 0:
+        return Response('{"result": false, "error": 3, "description": "Can not proceed because this appartment is not valid"}',status=400, mimetype="application/json")
 
     cursor.execute("SELECT COUNT(id) FROM reserve")
 
@@ -189,7 +189,7 @@ def appartments():
     if os.path.exists("/home/data/reserve.db"):
         connection = sqlite3.connect("/home/data/reserve.db", isolation_level=None)
         cursor = connection.cursor()
-        cursor.execute("SELECT id, name, size FROM appartments")
+        cursor.execute("SELECT id, name FROM appartments")
         columns = [col[0] for col in cursor.description]
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
         return json.dumps({"reserve appartments": rows})
