@@ -33,7 +33,7 @@ def hello():
 
 @app.route("/search")
 def search():
-    start = request.args.get("date")
+    start = request.args.get("start")
     duration = request.args.get("duration")
 
     if start == None:
@@ -83,10 +83,9 @@ def appartment_added(ch, method, properties, body):
     connection.close()
 
 
-def apartment_deleted(ch, method, properties, body):
+def appartment_deleted(ch, method, properties, body):
     logging.info("Apartment deleted message received.")
     data = json.loads(body)
-    id = data["id"]
     name = data["name"]
 
     logging.info(f"Deleting appartment {name}...")
@@ -95,7 +94,7 @@ def apartment_deleted(ch, method, properties, body):
     cursor = connection.cursor()
 
     cursor.execute("CREATE TABLE IF NOT EXISTS appartments (id text, name text)")
-    cursor.execute("DELETE FROM appartments WHERE id = ?", (id,))
+    cursor.execute("DELETE FROM appartments WHERE name = ?", (name,))
     cursor.close()
     connection.close()
 
@@ -130,7 +129,7 @@ def reservation_deleted(ch, method, properties, body):
     cursor = connection.cursor()
 
     cursor.execute("CREATE TABLE IF NOT EXISTS reserve (id text, name text, start text, duration text)")
-    cursor.execute("DELETE FROM reservation WHERE id = ?", (id,))
+    cursor.execute("DELETE FROM reserve WHERE id = ?", (id,))
     cursor.close()
     connection.close()
 
@@ -199,7 +198,7 @@ if __name__ == "__main__":
     result = channel.queue_declare(queue="", exclusive=True)
     queue_name = result.method.queue
     channel.queue_bind(exchange="appartments", queue=queue_name, routing_key="deleted")
-    channel.basic_consume(queue=queue_name, on_message_callback=apartment_deleted, auto_ack=True)
+    channel.basic_consume(queue=queue_name, on_message_callback=appartment_deleted, auto_ack=True)
 
     channel.exchange_declare(exchange="reserve", exchange_type="direct")
 
