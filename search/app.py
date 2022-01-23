@@ -108,7 +108,7 @@ def search():
                 result.append(app[0])
 
 
-    list += "Names of the available appartments"
+    list = "Names of the available appartments"
     for record in result:
         list += f"<div>{record}</div>\n"
 
